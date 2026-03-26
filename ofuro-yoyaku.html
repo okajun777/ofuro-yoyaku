@@ -710,11 +710,20 @@ function renderSlots() {
       pill.style.background = res.color;
       pill.innerHTML = `<span class="s-name"><span>${res.icon}</span><span>${res.memberName}</span></span><span class="s-del">✕</span>`;
       sc.appendChild(pill);
-      row.onclick = () => openDeleteSheet(key);
+      row.dataset.tapAction = 'delete';
+      row.dataset.tapKey   = key;
     } else {
       sc.innerHTML = `<span class="empty-hint">タップして予約</span>`;
-      row.onclick = () => tapSlot(key, time);
+      row.dataset.tapAction = 'reserve';
+      row.dataset.tapKey   = key;
+      row.dataset.tapTime  = time;
     }
+    // マウス用クリックハンドラ（タッチ以外）
+    row.onclick = e => {
+      if (e._fromTouch) return; // タッチ由来は無視
+      if (row.dataset.tapAction === 'delete') openDeleteSheet(row.dataset.tapKey);
+      else tapSlot(row.dataset.tapKey, row.dataset.tapTime);
+    };
     row.appendChild(tc);
     row.appendChild(sc);
     scroll.appendChild(row);
@@ -897,6 +906,7 @@ function changeDay(d) { curDate.setDate(curDate.getDate()+d); renderCal(); }
 
 // ===== DRAG SELECT & SWIPE =====
 let _tx0=0, _ty0=0, _dragStartIdx=-1, _inDragSel=false, _dragBubble=null;
+let _lastTouchEndTime = 0; // タッチ由来クリックをマウスクリックと区別するため
 
 function _getSlotRowAt(x, y) {
   const el = document.elementFromPoint(x, y);
@@ -912,6 +922,12 @@ function _clearDragSel() {
 }
 
 const _ss = document.getElementById('slotScroll');
+
+// タッチ由来のclickイベントを完全に無視（onclickへ渡さない）
+_ss.addEventListener('click', e => {
+  if (Date.now() - _lastTouchEndTime < 600) e.stopPropagation();
+}, {capture: true});
+
 _ss.addEventListener('touchstart', e => {
   const t = e.touches[0];
   _tx0 = t.clientX; _ty0 = t.clientY; _inDragSel = false;
@@ -943,10 +959,12 @@ _ss.addEventListener('touchmove', e => {
 }, {passive:false});
 
 _ss.addEventListener('touchend', e => {
+  _lastTouchEndTime = Date.now(); // タッチ終了時刻を記録（click抑制用）
   const t = e.changedTouches[0];
   const dx = t.clientX - _tx0, dy = t.clientY - _ty0;
-  const _moved = Math.abs(dx) > 8 || Math.abs(dy) > 8;
+  const moved = Math.abs(dx) > 10 || Math.abs(dy) > 10;
   if (_dragBubble) _dragBubble.style.display = 'none';
+
   if (_inDragSel) {
     _inDragSel = false;
     const row = _getSlotRowAt(t.clientX, t.clientY);
@@ -972,15 +990,22 @@ _ss.addEventListener('touchend', e => {
     }
     return;
   }
+
   _clearDragSel();
   _dragStartIdx = -1;
-  if (_moved) {
-    // 指が動いた場合はタップとみなさず、次のclickイベントを抑制する
-    _ss.addEventListener('click', ev => { ev.stopPropagation(); }, {once: true, capture: true});
-    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy)) changeDay(dx < 0 ? 1 : -1);
+
+  if (!moved) {
+    // 指がほぼ動いていない＝本物のタップ → touchend内で直接処理
+    const tapRow = _getSlotRowAt(t.clientX, t.clientY);
+    if (tapRow && tapRow.dataset.tapAction) {
+      if (tapRow.dataset.tapAction === 'delete') openDeleteSheet(tapRow.dataset.tapKey);
+      else tapSlot(tapRow.dataset.tapKey, tapRow.dataset.tapTime);
+    }
     return;
   }
-  // 動きなし = 本物のタップ → onclickに任せる
+
+  // 移動あり：スワイプで日付変更（横方向のみ）
+  if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy)) changeDay(dx < 0 ? 1 : -1);
 }, {passive:true});
 
 // ===== SHEET HELPERS =====
