@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>🛁 お風呂予約表</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --bg:     #F2F5FB;
+  --card:   #ffffff;
+  --text:   #1E2A3A;
+  --sub:    #7A8AA0;
+  --border: #E4EAF4;
+  --h:      52px;
+  --radius: 16px;
+}
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+/* HEADER */
+.app-header {
+  background: linear-gradient(135deg, #5B7FE8 0%, #9B6FE8 100%);
+  color: #fff;
+  padding: 14px 18px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  box-shadow: 0 2px 12px rgba(91,127,232,0.35);
+  position: relative;
+  z-index: 10;
+}
+.app-header h1 { font-size: 1.15rem; font-weight: 800; letter-spacing: 0.02em; display: flex; align-items: center; gap: 8px; }
+.header-right { text-align: right; font-size: 0.75rem; opacity: 0.92; line-height: 1.5; }
+
+/* MEMBER BAR */
+.member-bar {
+  background: var(--card);
+  padding: 10px 14px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.member-bar::-webkit-scrollbar { display: none; }
+
+.member-chip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: transform 0.15s, box-shadow 0.15s;
+  user-select: none;
+  min-height: 44px;
+}
+.member-chip:active { transform: scale(0.95); }
+.member-chip.active {
+  border-color: rgba(255,255,255,0.9);
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.25);
+  transform: scale(1.04);
+}
+
+/* DATE NAVIGATION */
+.date-nav {
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  flex-shrink: 0;
+  border-bottom: 2px solid var(--border);
+}
+.day-btn {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  color: #5B7FE8;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 12px;
+  min-width: 50px;
+  min-height: 50px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+  line-height: 1;
+}
+.day-btn:active { background: #EEF2FF; }
+
+.date-center {
+  flex: 1;
+  text-align: center;
+}
+.date-main { font-size: 1.05rem; font-weight: 800; color: var(--text); line-height: 1.2; }
+.date-sub  { font-size: 0.72rem; color: var(--sub); margin-top: 2px; }
+.today-badge {
+  display: inline-block;
+  background: #5B7FE8;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* WEEK STRIP */
+.week-strip {
+  background: var(--card);
+  display: flex;
+  padding: 6px 12px 10px;
+  gap: 4px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.week-strip::-webkit-scrollbar { display: none; }
+.week-day-pill {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  min-width: 42px;
+  transition: background 0.15s;
+}
+.week-day-pill:active { background: #EEF2FF; }
+.week-day-pill.selected {
+  background: linear-gradient(135deg, #5B7FE8, #9B6FE8);
+  color: #fff;
+}
+.week-day-pill .wd-name { font-size: 0.68rem; font-weight: 600; color: var(--sub); }
+.week-day-pill .wd-num  { font-size: 1.05rem; font-weight: 800; color: var(--text); line-height: 1.2; }
+.week-day-pill.selected .wd-name,
+.week-day-pill.selected .wd-num { color: #fff; }
+.week-day-pill.sunday  .wd-name,
+.week-day-pill.sunday  .wd-num  { color: #E8637A; }
+.week-day-pill.saturday .wd-name,
+.week-day-pill.saturday .wd-num { color: #5B7FE8; }
+.week-day-pill.selected .wd-name,
+.week-day-pill.selected .wd-num { color: #fff !important; }
+.week-day-pill.has-res::after {
+  content: '';
+  display: block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #E8637A;
+  margin: 2px auto 0;
+}
+.week-day-pill.selected.has-res::after { background: rgba(255,255,255,0.85); }
+
+/* TIME SLOT LIST */
+.slot-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.slot-scroll::-webkit-scrollbar { width: 4px; }
+.slot-scroll::-webkit-scrollbar-thumb { background: #C8D4E8; border-radius: 2px; }
+
+.time-slot-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid #EEF2FA;
+  min-height: var(--h);
+  cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+}
+.time-slot-row:active { background: #EEF2FF; }
+.time-slot-row.hour-start { border-top: 2px solid #D0DAF0; }
+
+.time-col {
+  width: 58px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #B0C0D8;
+  background: #F8FAFF;
+  border-right: 2px solid #E0EAF8;
+}
+.time-col.hour-mark { color: var(--text); font-size: 0.8rem; font-weight: 800; }
+
+.slot-col {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+}
+
+.slot-pill {
+  width: 100%;
+  border-radius: 10px;
+  padding: 10px 16px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.14);
+  min-height: 38px;
+}
+.slot-pill .s-name { display: flex; align-items: center; gap: 8px; }
+.slot-pill .s-del  { opacity: 0.75; font-size: 1rem; }
+
+.empty-hint {
+  color: #C8D8EC;
+  font-size: 0.78rem;
+  padding-left: 4px;
+}
+
+/* BOTTOM NAV */
+.bottom-nav {
+  flex-shrink: 0;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  display: flex;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+}
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-size: 0.68rem;
+  color: var(--sub);
+  font-weight: 600;
+  gap: 3px;
+  min-height: 58px;
+  transition: color 0.15s;
+}
+.nav-item:active { background: #F0F4FF; }
+.nav-item.active { color: #5B7FE8; }
+.nav-icon { font-size: 1.3rem; line-height: 1; }
+
+/* OVERLAYS / SHEETS */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 200;
+  align-items: flex-end;
+  justify-content: center;
+}
+.overlay.open { display: flex; }
+
+.sheet {
+  background: #fff;
+  border-radius: 24px 24px 0 0;
+  width: 100%;
+  max-width: 540px;
+  padding-bottom: max(env(safe-area-inset-bottom, 12px), 12px);
+  animation: slideUp 0.22s ease;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0.5; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.sheet-handle {
+  width: 44px; height: 5px;
+  background: #D0DAF0;
+  border-radius: 3px;
+  margin: 14px auto 0;
+}
+.sheet-body { padding: 16px 20px 20px; }
+.sheet-title { font-size: 1.05rem; font-weight: 800; margin-bottom: 4px; }
+.sheet-sub   { font-size: 0.82rem; color: var(--sub); margin-bottom: 18px; }
+
+.member-btn-list { display: flex; flex-direction: column; gap: 10px; }
+.member-sel-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  transition: transform 0.12s, filter 0.12s;
+  min-height: 56px;
+}
+.member-sel-btn:active { transform: scale(0.97); filter: brightness(0.9); }
+.member-sel-btn .m-icon { font-size: 1.4rem; }
+
+.cancel-row { margin-top: 12px; display: flex; gap: 10px; }
+.cancel-btn {
+  flex: 1; padding: 14px; border-radius: 14px;
+  border: 2px solid var(--border); background: #fff;
+  color: var(--sub); font-size: 0.95rem; font-weight: 700;
+  cursor: pointer; min-height: 52px;
+}
+.cancel-btn:active { background: #F0F4FF; }
+.delete-btn {
+  flex: 1; padding: 14px; border-radius: 14px;
+  border: none; background: #E84040;
+  color: #fff; font-size: 0.95rem; font-weight: 700;
+  cursor: pointer; min-height: 52px;
+}
+.delete-btn:active { filter: brightness(0.88); }
+
+/* FORM */
+.form-group { margin-bottom: 16px; }
+.form-label { font-size: 0.8rem; font-weight: 700; color: var(--sub); margin-bottom: 8px; display: block; }
+.form-input {
+  width: 100%; padding: 14px 16px;
+  border: 2px solid var(--border); border-radius: 12px;
+  font-size: 1rem; outline: none; transition: border-color 0.15s;
+  font-family: inherit; min-height: 52px;
+}
+.form-input:focus { border-color: #5B7FE8; }
+
+.color-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+.color-swatch {
+  width: 38px; height: 38px; border-radius: 50%;
+  cursor: pointer; border: 3px solid transparent;
+  transition: transform 0.15s;
+}
+.color-swatch:active { transform: scale(0.9); }
+.color-swatch.sel { border-color: #333; transform: scale(1.15); }
+
+.icon-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+.icon-opt {
+  width: 44px; height: 44px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; cursor: pointer;
+  border: 2px solid transparent; background: var(--bg);
+  transition: transform 0.15s;
+}
+.icon-opt:active { transform: scale(0.9); }
+.icon-opt.sel { border-color: #5B7FE8; background: #EEF2FF; }
+
+.primary-btn {
+  width: 100%; padding: 16px;
+  background: linear-gradient(135deg, #5B7FE8, #9B6FE8);
+  color: #fff; border: none; border-radius: 14px;
+  font-size: 1rem; font-weight: 800; cursor: pointer;
+  min-height: 54px; margin-top: 6px; transition: opacity 0.15s;
+}
+.primary-btn:active { opacity: 0.82; }
+
+/* TODAY / SETTINGS PANELS */
+.today-panel, .settings-panel {
+  display: none; flex-direction: column;
+  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+.today-panel.show, .settings-panel.show { display: flex; }
+.today-section { padding: 16px 18px; }
+.panel-section  { padding: 16px 18px; }
+.section-head { font-size: 0.82rem; font-weight: 700; color: var(--sub); margin-bottom: 12px; letter-spacing: 0.04em; }
+
+.today-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 12px; margin-bottom: 8px;
+  font-size: 0.92rem; font-weight: 600;
+}
+.time-badge {
+  padding: 4px 10px; border-radius: 999px;
+  color: #fff; font-size: 0.78rem; font-weight: 700; white-space: nowrap;
+}
+.no-res { color: var(--sub); font-size: 0.9rem; padding: 24px 0; text-align: center; }
+
+.settings-member-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; background: var(--card);
+  border-radius: 12px; margin-bottom: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.m-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+.m-label { flex: 1; font-weight: 700; font-size: 0.92rem; }
+.del-btn {
+  background: none; border: none; color: #E84040;
+  font-size: 1.2rem; cursor: pointer; padding: 6px;
+  border-radius: 8px; min-width: 40px; min-height: 40px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Slot view container */
+.slot-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+.slot-view.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <h1>🛁 お風呂予約表</h1>
+  <div class="header-right" id="headerRight"></div>
+</div>
+
+<div class="member-bar" id="memberBar"></div>
+
+<div style="display:flex;flex-direction:column;flex:1;overflow:hidden;" id="mainContent">
+
+  <!-- CALENDAR TAB -->
+  <div class="slot-view" id="calView">
+    <div class="date-nav">
+      <button class="day-btn" onclick="changeDay(-1)">‹</button>
+      <div class="date-center">
+        <div class="date-main" id="datMain"></div>
+        <div class="date-sub"  id="datSub"></div>
+      </div>
+      <button class="day-btn" onclick="changeDay(1)">›</button>
+    </div>
+    <div class="week-strip" id="weekStrip"></div>
+    <div class="slot-scroll" id="slotScroll"></div>
+  </div>
+
+  <!-- TODAY TAB -->
+  <div class="today-panel" id="todayPanel">
+    <div class="today-section" id="todayContent"></div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div class="settings-panel" id="settingsPanel">
+    <div class="panel-section">
+      <div class="section-head">👨‍👩‍👧‍👦 メンバー管理</div>
+      <div id="memberList"></div>
+      <button class="primary-btn" onclick="openAddMember()">＋ メンバーを追加</button>
+    </div>
+    <div class="panel-section">
+      <div class="section-head">ℹ️ 使い方</div>
+      <div style="font-size:0.84rem;color:var(--sub);line-height:1.9;background:#F8FAFF;padding:14px 16px;border-radius:12px;">
+        <div>① 上のメンバーをタップして選択</div>
+        <div>② 時間枠をタップして予約（左スワイプで翌日）</div>
+        <div>③ 予約済み枠をタップ → 取り消し</div>
+        <div>④ 週のバーで日付を切り替え</div>
+        <div style="margin-top:8px;padding:8px 10px;background:#EEF2FF;border-radius:8px;color:#5B7FE8;font-weight:600;">
+          💾 データはブラウザに自動保存
+        </div>
+      </div>
+    </div>
+    <div class="panel-section">
+      <div class="section-head">🗑️ デーソ管理</div>
+      <button onclick="clearAllData()" style="width:100%;padding:14px;border-radius:12px;border:2px solid #E84040;background:#fff;color:#E84040;font-size:0.92rem;font-weight:700;cursor:pointer;min-height:52px;">
+        すべての予約を削除
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <button class="nav-item active" id="navCal"      onclick="switchTab('cal')">      <span class="nav-icon">📅</span>予約 </button>
+  <button class="nav-item"        id="navToday"    onclick="switchTab('today')">    <span class="nav-icon">✅</span>今日 </button>
+  <button class="nav-item"        id="navSettings" onclick="switchTab('settings')"> <span class="nav-icon">⚙️</span>設定 </button>
+</div>
+
+<!-- RESERVE SHEET -->
+<div class="overlay" id="reserveSheet" onclick="sheetBg(event,'reserveSheet')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="sheet-title" id="resTitle"></div>
+      <div class="sheet-sub"   id="resSub"></div>
+      <div class="member-btn-list" id="resMemberList"></div>
+      <div class="cancel-row">
+        <button class="cancel-btn" onclick="closeSheet('reserveSheet')">キャンセル</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE SHEET -->
+<div class="overlay" id="deleteSheet" onclick="sheetBg(event,'deleteSheet')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="sheet-title">予約を取り消す</div>
+      <div class="sheet-sub" id="delSub"></div>
+      <div class="cancel-row">
+        <button class="cancel-btn" onclick="closeSheet('deleteSheet')">戻る</button>
+        <button class="delete-btn" onclick="doDelete()">取り消す</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD MEMBER SHEET -->
+<div class="overlay" id="addSheet" onclick="sheetBg(event,'addSheet')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="sheet-title" style="margin-bottom:18px;">👤 メンバーを追加</div>
+      <div class="form-group">
+        <label class="form-label">名前</label>
+        <input class="form-input" id="newName" type="text" placeholder="例：はるみ" maxlength="8">
+      </div>
+      <div class="form-group">
+        <label class="form-label">カラー</label>
+        <div class="color-grid" id="colorGrid"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">アイコン</label>
+        <div class="icon-grid" id="iconGrid"></div>
+      </div>
+      <button class="primary-btn" onclick="doAddMember()">追加する</button>
+      <div class="cancel-row" style="margin-top:10px;">
+        <button class="cancel-btn" onclick="closeSheet('addSheet')">キャンセル</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== CONFIG =====
+const DEFAULTS = [
+  { id:'m1', name:'はるみ', color:'#E8637A', icon:'🌸' },
+  { id:'m2', name:'奈々',   color:'#7B6FF0', icon:'⭐' },
+  { id:'m3', name:'亜也',   color:'#21A179', icon:'🍀' },
+  { id:'m4', name:'奈三',   color:'#F0973A', icon:'🌟' },
+];
+const COLORS = ['#E8637A','#F0973A','#F5C842','#21A179','#4AC2C8','#5B7FE8','#7B6FF0','#E05ABA','#E84040','#48BB78'];
+const ICONS  = ['🌸','⭐','🍀','🌟','🌺','🎀','🌈','🐱','🌙','💎'];
+const DAY_JP = ['日','月','火','水','木','金','土'];
+
+// Time slots 15:00 - 24:00, 10 min
+const SLOTS = [];
+for (let h = 15; h <= 24; h++) {
+  for (let m = 0; m < 60; m += 10) {
+    if (h === 24 && m > 0) break;
+    SLOTS.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+  }
+}
+
+// ===== STATE =====
+let members = [], reservations = {}, selMember = null;
+let curDate = new Date(); curDate.setHours(0,0,0,0);
+let pendingKey = null;
+
+// ===== INIT =====
+function init() {
+  load();
+  if (!members.length) { members = JSON.parse(JSON.stringify(DEFAULTS)); save(); }
+  updateHeader();
+  renderMemberBar();
+  renderCal();
+  renderTodayTab();
+}
+
+// ===== STORAGE =====
+function save() {
+  localStorage.setItem('furo3_m', JSON.stringify(members));
+  localStorage.setItem('furo3_r', JSON.stringify(reservations));
+}
+function load() {
+  try {
+    const m = localStorage.getItem('furo3_m');
+    const r = localStorage.getItem('furo3_r');
+    if (m) members = JSON.parse(m);
+    if (r) reservations = JSON.parse(r);
+  } catch(e) {}
+}
+
+// ===== HELPERS =====
+function pad(n) { return String(n).padStart(2,'0'); }
+function dkey(d, t) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${t}`; }
+function isToday(d) { const n=new Date(); n.setHours(0,0,0,0); return d.getTime()===n.getTime(); }
+
+// ===== HEADER =====
+function updateHeader() {
+  const n = new Date();
+  document.getElementById('headerRight').innerHTML =
+    `${n.getMonth()+1}月${n.getDate()}日（${DAY_JP[n.getDay()]}）<br>${n.getFullYear()}年`;
+}
+
+// ===== MEMBER BAR =====
+function renderMemberBar() {
+  const bar = document.getElementById('memberBar');
+  bar.innerHTML = '';
+  members.forEach(m => {
+    const el = document.createElement('div');
+    el.className = 'member-chip' + (m.id === selMember ? ' active' : '');
+    el.style.background = m.color;
+    el.innerHTML = `<span>${m.icon}</span><span>${m.name}</span>`;
+    el.onclick = () => { selMember = selMember===m.id ? null : m.id; renderMemberBar(); };
+    bar.appendChild(el);
+  });
+}
+
+// ===== CALENDAR =====
+function renderCal() { renderDateNav(); renderWeekStrip(); renderSlots(); }
+
+function renderDateNav() {
+  const d = curDate;
+  document.getElementById('datMain').innerHTML =
+    `${d.getMonth()+1}月${d.getDate()}日（${DAY_JP[d.getDay()]}）` +
+    (isToday(d) ? '<span class="today-badge">TODAY</span>' : '');
+  document.getElementById('datSub').textContent = `お風呂の予約　15:00 〜 24:00`;
+}
+
+function renderWeekStrip() {
+  const strip = document.getElementById('weekStrip');
+  strip.innerHTML = '';
+  const base = new Date(curDate);
+  base.setDate(base.getDate() - 4);
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(base); d.setDate(base.getDate() + i);
+    const isSel = d.getTime() === curDate.getTime();
+    const hasR  = SLOTS.some(t => reservations[dkey(d,t)]);
+    const isSun = d.getDay()===0, isSat = d.getDay()===6;
+    const el = document.createElement('div');
+    el.className = 'week-day-pill' +
+      (isSel ? ' selected' : '') + (hasR ? ' has-res' : '') +
+      (isSun ? ' sunday' : '') + (isSat ? ' saturday' : '');
+    el.innerHTML = `<span class="wd-name">${DAY_JP[d.getDay()]}</span><span class="wd-num">${d.getDate()}</span>`;
+    const cap = new Date(d);
+    el.onclick = () => { curDate = cap; renderCal(); };
+    strip.appendChild(el);
+    if (isSel) setTimeout(()=>el.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'}),30);
+  }
+}
+
+function renderSlots() {
+  const scroll = document.getElementById('slotScroll');
+  scroll.innerHTML = '';
+  SLOTS.forEach((time) => {
+    const key = dkey(curDate, time);
+    const res = reservations[key];
+    const isHour = time.endsWith(':00');
+    const row = document.createElement('div');
+    row.className = 'time-slot-row' + (isHour ? ' hour-start' : '');
+
+    // time label
+    const tc = document.createElement('div');
+    tc.className = 'time-col' + (isHour ? ' hour-mark' : '');
+    tc.textContent = isHour ? time : ':' + time.slice(-2);
+
+    // slot area
+    const sc = document.createElement('div');
+    sc.className = 'slot-col';
+    if (res) {
+      const pill = document.createElement('div');
+      pill.className = 'slot-pill';
+      pill.style.background = res.color;
+      pill.innerHTML = `<span class="s-name"><span>${res.icon}</span><span>${res.memberName}</span></span><span class="s-del">✕</span>`;
+      sc.appendChild(pill);
+      row.onclick = () => openDeleteSheet(key);
+    } else {
+      sc.innerHTML = `<span class="empty-hint">タップして予約</span>`;
+      row.onclick = () => tapSlot(key, time);
+    }
+    row.appendChild(tc);
+    row.appendChild(sc);
+    scroll.appendChild(row);
+  });
+
+  // scroll to 18:00
+  const idx = SLOTS.indexOf('18:00');
+  if (idx >= 0) {
+    setTimeout(() => {
+      const rows = scroll.querySelectorAll('.time-slot-row');
+      if (rows[idx]) scroll.scrollTop = rows[idx].offsetTop - 8;
+    }, 40);
+  }
+}
+
+// ===== SLOT TAP =====
+function tapSlot(key, time) {
+  pendingKey = key;
+  if (selMember) {
+    const m = members.find(x=>x.id===selMember);
+    if (m) { doReserve(key, m); return; }
+  }
+  // picker sheet
+  const [ds, ts] = key.split('_');
+  const [,mo,d] = ds.split('-');
+  document.getElementById('resTitle').textContent = '誰の予約ですか？';
+  document.getElementById('resSub').textContent   = `${parseInt(mo)}月${parseInt(d)}日 ${ts}`;
+  const list = document.getElementById('resMemberList');
+  list.innerHTML = '';
+  members.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'member-sel-btn';
+    btn.style.background = m.color;
+    btn.innerHTML = `<span class="m-icon">${m.icon}</span>${m.name}`;
+    btn.onclick = () => { doReserve(pendingKey, m); closeSheet('reserveSheet'); };
+    list.appendChild(btn);
+  });
+  openSheet('reserveSheet');
+}
+
+function doReserve(key, m) {
+  reservations[key] = { memberId:m.id, memberName:m.name, color:m.color, icon:m.icon };
+  save();
+  renderSlots();
+  renderWeekStrip();
+  renderTodayTab();
+}
+
+// ===== DELETE =====
+function openDeleteSheet(key) {
+  pendingKey = key;
+  const res = reservations[key];
+  const [ds, ts] = key.split('_');
+  const [,mo,d] = ds.split('-');
+  document.getElementById('delSub').innerHTML =
+    `<span style="font-weight:800;color:${res.color}">${res.icon} ${res.memberName}</span> さんの予約<br>` +
+    `${parseInt(mo)}月${parseInt(d)}日 ${ts} を取り消しますか？`;
+  openSheet('deleteSheet');
+}
+function doDelete() {
+  if (pendingKey) { delete reservations[pendingKey]; save(); }
+  closeSheet('deleteSheet');
+  renderSlots(); renderWeekStrip(); renderTodayTab();
+}
+
+// ===== TODAY TAB =====
+function renderTodayTab() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const ct = document.getElementById('todayContent');
+  ct.innerHTML = `<div class="section-head">📅 今日（${today.getMonth()+1}月${today.getDate()}日）の予約</div>`;
+  let count = 0;
+  SLOTS.forEach(t => {
+    const res = reservations[dkey(today, t)];
+    if (!res) return;
+    count++;
+    const item = document.createElement('div');
+    item.className = 'today-item';
+    item.style.background = res.color + '1A';
+    item.innerHTML =
+      `<span class="time-badge" style="background:${res.color}">${t}</span>` +
+      `<span style="font-size:1.2rem">${res.icon}</span>` +
+      `<span style="font-weight:700;color:${res.color}">${res.memberName}</span>`;
+    ct.appendChild(item);
+  });
+  if (!count) {
+    const np = document.createElement('p');
+    np.className = 'no-res';
+    np.textContent = '今日の予約はまだありません 🛁';
+    ct.appendChild(np);
+  }
+}
+
+// ===== SETTINGS =====
+function renderSettings() {
+  const el = document.getElementById('memberList');
+  el.innerHTML = '';
+  members.forEach(m => {
+    const row = document.createElement('div');
+    row.className = 'settings-member-row';
+    row.innerHTML = `<span class="m-dot" style="background:${m.color}"></span><span style="font-size:1.2rem">${m.icon}</span><span class="m-label">${m.name}</span>`;
+    const db = document.createElement('button');
+    db.className = 'del-btn'; db.textContent = '🗑️';
+    db.onclick = () => removeMember(m.id);
+    row.appendChild(db);
+    el.appendChild(row);
+  });
+}
+function removeMember(id) {
+  const m = members.find(x=>x.id===id);
+  if (!m || !confirm(`「${m.name}」を削除しますか？`)) return;
+  members = members.filter(x=>x.id!==id);
+  Object.keys(reservations).forEach(k => { if (reservations[k].memberId===id) delete reservations[k]; });
+  if (selMember===id) selMember = null;
+  save(); renderMemberBar(); renderCal(); renderTodayTab(); renderSettings();
+}
+function clearAllData() {
+  if (!confirm('すべての予約を削除しますか？\nこの操作は元に戻せません。')) return;
+  reservations = {}; save(); renderCal(); renderTodayTab();
+  alert('削除しました。');
+}
+
+// ===== ADD MEMBER =====
+let newColor = COLORS[0], newIcon = ICONS[0];
+function openAddMember() {
+  document.getElementById('newName').value = '';
+  newColor = COLORS[0]; newIcon = ICONS[0];
+  const cg = document.getElementById('colorGrid');
+  cg.innerHTML = '';
+  COLORS.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'color-swatch' + (c===newColor?' sel':'');
+    el.style.background = c;
+    el.onclick = () => { newColor=c; cg.querySelectorAll('.color-swatch').forEach(x=>x.classList.remove('sel')); el.classList.add('sel'); };
+    cg.appendChild(el);
+  });
+  const ig = document.getElementById('iconGrid');
+  ig.innerHTML = '';
+  ICONS.forEach(ico => {
+    const el = document.createElement('div');
+    el.className = 'icon-opt' + (ico===newIcon?' sel':'');
+    el.textContent = ico;
+    el.onclick = () => { newIcon=ico; ig.querySelectorAll('.icon-opt').forEach(x=>x.classList.remove('sel')); el.classList.add('sel'); };
+    ig.appendChild(el);
+  });
+  openSheet('addSheet');
+  setTimeout(()=>document.getElementById('newName').focus(), 250);
+}
+function doAddMember() {
+  const name = document.getElementById('newName').value.trim();
+  if (!name) { alert('名前を入力してください'); return; }
+  members.push({ id:'m'+Date.now(), name, color:newColor, icon:newIcon });
+  save(); renderMemberBar(); renderSettings(); closeSheet('addSheet');
+}
+
+// ===== TAB SWITCH =====
+function switchTab(tab) {
+  document.getElementById('calView').classList.toggle('hidden', tab!=='cal');
+  document.getElementById('todayPanel').classList.toggle('show', tab==='today');
+  document.getElementById('settingsPanel').classList.toggle('show', tab==='settings');
+  ['navCal','navToday','navSettings'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById(tab==='cal'?'navCal':tab==='today'?'navToday':'navSettings').classList.add('active');
+  if (tab==='today') renderTodayTab();
+  if (tab==='settings') renderSettings();
+}
+
+// ===== DATE NAV =====
+function changeDay(d) { curDate.setDate(curDate.getDate()+d); renderCal(); }
+
+// ===== SWIPE =====
+let swipeX = 0;
+document.getElementById('slotScroll').addEventListener('touchstart', e => { swipeX = e.touches[0].clientX; }, {passive:true});
+document.getElementById('slotScroll').addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - swipeX;
+  if (Math.abs(dx) > 70 && Math.abs(e.changedTouches[0].clientY - e.touches?.[0]?.clientY || 0) < 30) {
+    changeDay(dx < 0 ? 1 : -1);
+  }
+}, {passive:true});
+
+// ===== SHEQT HEPPERS =====
+function openSheet(id)  { document.getElementById(id).classList.add('open'); }
+function closeSheet(id) { document.getElementById(id).classList.remove('open'); }
+function sheetBg(e,id)  { if (e.target===document.getElementById(id)) closeSheet(id); }
+
+// ===== START =====
+init();
+</script>
+</body>
+</html>
