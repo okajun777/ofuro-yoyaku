@@ -482,7 +482,7 @@ body {
       <div style="font-size:0.84rem;color:var(--sub);line-height:1.9;background:#F8FAFF;padding:14px 16px;border-radius:12px;">
         <div>① 上のメンバーをタップして選択</div>
         <div>② 時間枠を<strong>タップ</strong>→ 1枠予約</div>
-        <div>② 時間枠を<strong>ドラッグ</strong>→ 複数枠まとめて予約</div>
+        <div>② 時間枠を<strong>長押し＋ドラッグ</strong>→ 複数枠まとめて予約</div>
         <div>③ 予約済み枠をタップ → 取り消し</div>
         <div>④ 週のバーで日付を切り替え</div>
         <div style="margin-top:8px;padding:8px 10px;background:#EEF2FF;border-radius:8px;color:#5B7FE8;font-weight:600;">
@@ -905,8 +905,13 @@ function switchTab(tab) {
 function changeDay(d) { curDate.setDate(curDate.getDate()+d); renderCal(); }
 
 // ===== DRAG SELECT & SWIPE =====
+// 長押し→ドラッグで複数選択、通常の縦スワイプはスクロール、横スワイプは日付変更
 let _tx0=0, _ty0=0, _dragStartIdx=-1, _inDragSel=false, _dragBubble=null;
-let _lastTouchEndTime = 0; // タッチ由来クリックをマウスクリックと区別するため
+let _lastTouchEndTime = 0;
+let _touchMoved = false;
+let _longPressTimer = null;
+const LONG_PRESS_MS = 350; // 長押し判定時間(ms)
+const TAP_MOVE_LIMIT = 8;  // タップ判定の最大移動距離(px)
 
 function _getSlotRowAt(x, y) {
   const el = document.elementFromPoint(x, y);
@@ -920,52 +925,83 @@ function _setDragSel(lo, hi) {
 function _clearDragSel() {
   document.querySelectorAll('#slotScroll .time-slot-row.drag-sel').forEach(r => r.classList.remove('drag-sel'));
 }
+function _cancelLongPress() {
+  if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
+}
+function _initDragBubble() {
+  if (!_dragBubble) {
+    _dragBubble = document.createElement('div');
+    _dragBubble.className = 'drag-count-bubble';
+    document.body.appendChild(_dragBubble);
+  }
+}
 
 const _ss = document.getElementById('slotScroll');
 
-// タッチ由来のclickイベントを完全に無視（onclickへ渡さない）
+// タッチ由来のclickイベントを完全に無視
 _ss.addEventListener('click', e => {
   if (Date.now() - _lastTouchEndTime < 600) e.stopPropagation();
 }, {capture: true});
 
 _ss.addEventListener('touchstart', e => {
   const t = e.touches[0];
-  _tx0 = t.clientX; _ty0 = t.clientY; _inDragSel = false;
+  _tx0 = t.clientX; _ty0 = t.clientY;
+  _inDragSel = false;
+  _touchMoved = false;
   const row = _getSlotRowAt(t.clientX, t.clientY);
   _dragStartIdx = row ? parseInt(row.dataset.slotIdx) : -1;
+
+  // 長押しタイマー開始：指が動かなければドラッグ選択モードへ
+  _cancelLongPress();
+  if (_dragStartIdx >= 0) {
+    _longPressTimer = setTimeout(() => {
+      if (!_touchMoved) {
+        // 長押し確定 → ドラッグ選択モード開始
+        _inDragSel = true;
+        if (navigator.vibrate) navigator.vibrate(30); // 触覚フィードバック
+        _initDragBubble();
+        _dragBubble.style.display = 'block';
+        _dragBubble.textContent = '1枠を選択中 ✓';
+        _dragBubble.style.top = Math.max(80, _ty0 - 70) + 'px';
+        _setDragSel(_dragStartIdx, _dragStartIdx);
+      }
+    }, LONG_PRESS_MS);
+  }
 }, {passive:true});
 
 _ss.addEventListener('touchmove', e => {
   const t = e.touches[0];
   const dx = t.clientX - _tx0, dy = t.clientY - _ty0;
-  if (!_inDragSel && Math.abs(dy) > 16 && Math.abs(dy) > Math.abs(dx) * 1.2 && _dragStartIdx >= 0) {
-    _inDragSel = true;
-    if (!_dragBubble) {
-      _dragBubble = document.createElement('div');
-      _dragBubble.className = 'drag-count-bubble';
-      document.body.appendChild(_dragBubble);
-    }
-    _dragBubble.style.display = 'block';
+
+  // 少しでも動いたら「移動あり」フラグを立て、長押しタイマーをキャンセル
+  if (!_touchMoved && (Math.abs(dx) > TAP_MOVE_LIMIT || Math.abs(dy) > TAP_MOVE_LIMIT)) {
+    _touchMoved = true;
+    if (!_inDragSel) _cancelLongPress(); // ドラッグ選択未開始なら長押しキャンセル
   }
+
   if (_inDragSel) {
+    // ドラッグ選択中：スクロールを止めて選択範囲を更新
     e.preventDefault();
     const row = _getSlotRowAt(t.clientX, t.clientY);
     const curIdx = row ? parseInt(row.dataset.slotIdx) : _dragStartIdx;
     const lo = Math.min(_dragStartIdx, curIdx), hi = Math.max(_dragStartIdx, curIdx);
     _setDragSel(lo, hi);
+    _initDragBubble();
     _dragBubble.textContent = `${hi - lo + 1}枠を選択中 ✓`;
     _dragBubble.style.top = Math.max(80, t.clientY - 70) + 'px';
   }
+  // ドラッグ選択モードでなければ通常スクロール（preventDefault しない）
 }, {passive:false});
 
 _ss.addEventListener('touchend', e => {
-  _lastTouchEndTime = Date.now(); // タッチ終了時刻を記録（click抑制用）
+  _lastTouchEndTime = Date.now();
+  _cancelLongPress();
   const t = e.changedTouches[0];
   const dx = t.clientX - _tx0, dy = t.clientY - _ty0;
-  const moved = Math.abs(dx) > 10 || Math.abs(dy) > 10;
   if (_dragBubble) _dragBubble.style.display = 'none';
 
   if (_inDragSel) {
+    // ドラッグ選択確定
     _inDragSel = false;
     const row = _getSlotRowAt(t.clientX, t.clientY);
     const endIdx = row ? parseInt(row.dataset.slotIdx) : _dragStartIdx;
@@ -994,8 +1030,8 @@ _ss.addEventListener('touchend', e => {
   _clearDragSel();
   _dragStartIdx = -1;
 
-  if (!moved) {
-    // 指がほぼ動いていない＝本物のタップ → touchend内で直接処理
+  if (!_touchMoved) {
+    // 指がほぼ動いていない＝本物のタップ
     const tapRow = _getSlotRowAt(t.clientX, t.clientY);
     if (tapRow && tapRow.dataset.tapAction) {
       if (tapRow.dataset.tapAction === 'delete') openDeleteSheet(tapRow.dataset.tapKey);
@@ -1004,8 +1040,8 @@ _ss.addEventListener('touchend', e => {
     return;
   }
 
-  // 移動あり：スワイプで日付変更（横方向のみ）
-  if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy)) changeDay(dx < 0 ? 1 : -1);
+  // 横スワイプ：日付変更
+  if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) changeDay(dx < 0 ? 1 : -1);
 }, {passive:true});
 
 // ===== SHEET HELPERS =====
