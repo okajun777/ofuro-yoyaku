@@ -421,6 +421,14 @@ body {
 /* DRAG SELECT */
 .time-slot-row.drag-sel { background: #EEF2FF !important; }
 .time-slot-row.drag-sel .empty-hint { color: #5B7FE8; font-weight: 700; }
+
+/* NEXT DAY (翌日) SLOTS */
+.time-slot-row.next-day { background: #F8F6FF; }
+.time-slot-row.next-day:active { background: #EDE8FF; }
+.time-slot-row.next-day.hour-start { border-top: 2px solid #C8BAE8; }
+.time-col.next-day-col { color: #7B6FD0; }
+.time-col.next-day-col.hour-mark { color: #5B4FBB; font-weight: 700; }
+
 .drag-count-bubble {
   position: fixed; left: 50%; transform: translateX(-50%);
   background: linear-gradient(135deg,#5B7FE8,#9B6FE8);
@@ -565,13 +573,18 @@ const COLORS = ['#E8637A','#F0973A','#F5C842','#21A179','#4AC2C8','#5B7FE8','#7B
 const ICONS  = ['🌸','⭐','🍀','🌟','🌺','🎀','🌈','🐱','🌙','💎'];
 const DAY_JP = ['日','月','火','水','木','金','土'];
 
-// Time slots 15:00 - 24:00, 10 min
+// Time slots 15:00 - 30:00 (翌6:00), 10 min
 const SLOTS = [];
-for (let h = 15; h <= 24; h++) {
+for (let h = 15; h <= 30; h++) {
   for (let m = 0; m < 60; m += 10) {
-    if (h === 24 && m > 0) break;
+    if (h === 30 && m > 0) break;
     SLOTS.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
   }
+}
+function slotDisplayTime(time) {
+  const h = parseInt(time.split(':')[0]);
+  if (h >= 24) return `翌${String(h-24).padStart(2,'0')}:${time.slice(-2)}`;
+  return time;
 }
 
 // ===== STATE =====
@@ -613,7 +626,7 @@ function isToday(d) { const n=new Date(); n.setHours(0,0,0,0); return d.getTime(
 function updateHeader() {
   const n = new Date();
   document.getElementById('headerRight').innerHTML =
-    `${n.getMonth()+1}月${n.getDate()}日（${DAY_JP[n.getDay()]}）<br>${n.getFullYear()}�T`;
+    `${n.getMonth()+1}月${n.getDate()}日（${DAY_JP[n.getDay()]}）<br>${n.getFullYear()}年`;
 }
 
 // ===== MEMBER BAR =====
@@ -638,7 +651,7 @@ function renderDateNav() {
   document.getElementById('datMain').innerHTML =
     `${d.getMonth()+1}月${d.getDate()}日（${DAY_JP[d.getDay()]}）` +
     (isToday(d) ? '<span class="today-badge">TODAY</span>' : '');
-  document.getElementById('datSub').textContent = `お風呂の予約　15:00 〜 24:00`;
+  document.getElementById('datSub').textContent = `お風呂の予約　15:00 〜 翌6:00`;
 }
 
 function renderWeekStrip() {
@@ -667,17 +680,26 @@ function renderSlots() {
   const scroll = document.getElementById('slotScroll');
   scroll.innerHTML = '';
   SLOTS.forEach((time) => {
+    // 23:50と24:00の間に「翌日」区切り線を挿入
+    if (time === '24:00') {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 12px;background:linear-gradient(90deg,#E8F4FF,#F0F4FF);border-top:1.5px solid #B0C4DE;border-bottom:1.5px solid #B0C4DE;font-size:0.76rem;color:#5B7FE8;font-weight:700;letter-spacing:0.04em;';
+      sep.innerHTML = '🌙 日付をまたいでいます（翌日）';
+      scroll.appendChild(sep);
+    }
     const key = dkey(curDate, time);
     const res = reservations[key];
     const isHour = time.endsWith(':00');
+    const isNextDay = parseInt(time) >= 24;
     const row = document.createElement('div');
-    row.className = 'time-slot-row' + (isHour ? ' hour-start' : '');
+    row.className = 'time-slot-row' + (isHour ? ' hour-start' : '') + (isNextDay ? ' next-day' : '');
     row.dataset.slotIdx = SLOTS.indexOf(time);
 
     // time label
     const tc = document.createElement('div');
-    tc.className = 'time-col' + (isHour ? ' hour-mark' : '');
-    tc.textContent = isHour ? time : ':' + time.slice(-2);
+    tc.className = 'time-col' + (isHour ? ' hour-mark' : '') + (isNextDay ? ' next-day-col' : '');
+    const dispTime = slotDisplayTime(time);
+    tc.textContent = isHour ? dispTime : ':' + time.slice(-2);
 
     // slot area
     const sc = document.createElement('div');
@@ -724,8 +746,8 @@ function openReserveSheet(items) {
   const [,mo,d] = ds.split('-');
   document.getElementById('resTitle').textContent = '誰の予約ですか？';
   document.getElementById('resSub').textContent = items.length === 1
-    ? `${parseInt(mo)}月${parseInt(d)}日 ${first.time}`
-    : `${parseInt(mo)}月${parseInt(d)}日 ${first.time}〜${last.time}（${items.length}枠）`;
+    ? `${parseInt(mo)}月${parseInt(d)}日 ${slotDisplayTime(first.time)}`
+    : `${parseInt(mo)}月${parseInt(d)}日 ${slotDisplayTime(first.time)}〜${slotDisplayTime(last.time)}（${items.length}枠）`;
   const list = document.getElementById('resMemberList');
   list.innerHTML = '';
   members.forEach(m => {
@@ -761,7 +783,7 @@ function openDeleteSheet(key) {
   const [,mo,d] = ds.split('-');
   document.getElementById('delSub').innerHTML =
     `<span style="font-weight:800;color:${res.color}">${res.icon} ${res.memberName}</span> さんの予約<br>` +
-    `${parseInt(mo)}月${parseInt(d)}日 ${ts} を取り消しますか？`;
+    `${parseInt(mo)}月${parseInt(d)}日 ${slotDisplayTime(ts)} を取り消しますか？`;
   openSheet('deleteSheet');
 }
 function doDelete() {
@@ -784,7 +806,7 @@ function renderTodayTab() {
     item.className = 'today-item';
     item.style.background = res.color + '1A';
     item.innerHTML =
-      `<span class="time-badge" style="background:${res.color}">${t}</span>` +
+      `<span class="time-badge" style="background:${res.color}">${slotDisplayTime(t)}</span>` +
       `<span style="font-size:1.2rem">${res.icon}</span>` +
       `<span style="font-weight:700;color:${res.color}">${res.memberName}</span>`;
     ct.appendChild(item);
@@ -923,6 +945,7 @@ _ss.addEventListener('touchmove', e => {
 _ss.addEventListener('touchend', e => {
   const t = e.changedTouches[0];
   const dx = t.clientX - _tx0, dy = t.clientY - _ty0;
+  const _moved = Math.abs(dx) > 8 || Math.abs(dy) > 8;
   if (_dragBubble) _dragBubble.style.display = 'none';
   if (_inDragSel) {
     _inDragSel = false;
@@ -951,7 +974,13 @@ _ss.addEventListener('touchend', e => {
   }
   _clearDragSel();
   _dragStartIdx = -1;
-  if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy)) changeDay(dx < 0 ? 1 : -1);
+  if (_moved) {
+    // 指が動いた場合はタップとみなさず、次のclickイベントを抑制する
+    _ss.addEventListener('click', ev => { ev.stopPropagation(); }, {once: true, capture: true});
+    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy)) changeDay(dx < 0 ? 1 : -1);
+    return;
+  }
+  // 動きなし = 本物のタップ → onclickに任せる
 }, {passive:true});
 
 // ===== SHEET HELPERS =====
