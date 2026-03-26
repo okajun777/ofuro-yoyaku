@@ -417,6 +417,19 @@ body {
 /* Slot view container */
 .slot-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
 .slot-view.hidden { display: none; }
+
+/* DRAG SELECT */
+.time-slot-row.drag-sel { background: #EEF2FF !important; }
+.time-slot-row.drag-sel .empty-hint { color: #5B7FE8; font-weight: 700; }
+.drag-count-bubble {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  background: linear-gradient(135deg,#5B7FE8,#9B6FE8);
+  color: #fff; padding: 10px 24px; border-radius: 999px;
+  font-size: 0.95rem; font-weight: 800;
+  pointer-events: none; z-index: 300; display: none;
+  box-shadow: 0 4px 20px rgba(91,127,232,0.5);
+  white-space: nowrap;
+}
 </style>
 </head>
 <body>
@@ -460,7 +473,8 @@ body {
       <div class="section-head">ℹ️ 使い方</div>
       <div style="font-size:0.84rem;color:var(--sub);line-height:1.9;background:#F8FAFF;padding:14px 16px;border-radius:12px;">
         <div>① 上のメンバーをタップして選択</div>
-        <div>② 時間枠をタップして予約（左スワイプで翌日）</div>
+        <div>② 時間枠を<strong>タップ</strong>→ 1枠予約</div>
+        <div>② 時間枠を<strong>ドラッグ</strong>→ 複数枠まとめて予約</div>
         <div>③ 予約済み枠をタップ → 取り消し</div>
         <div>④ 週のバーで日付を切り替え</div>
         <div style="margin-top:8px;padding:8px 10px;background:#EEF2FF;border-radius:8px;color:#5B7FE8;font-weight:600;">
@@ -469,7 +483,7 @@ body {
       </div>
     </div>
     <div class="panel-section">
-      <div class="section-head">🗑️ デーソ管理</div>
+      <div class="section-head">🗑️ データ管理</div>
       <button onclick="clearAllData()" style="width:100%;padding:14px;border-radius:12px;border:2px solid #E84040;background:#fff;color:#E84040;font-size:0.92rem;font-weight:700;cursor:pointer;min-height:52px;">
         すべての予約を削除
       </button>
@@ -564,6 +578,7 @@ for (let h = 15; h <= 24; h++) {
 let members = [], reservations = {}, selMember = null;
 let curDate = new Date(); curDate.setHours(0,0,0,0);
 let pendingKey = null;
+let pendingKeys = [];
 
 // ===== INIT =====
 function init() {
@@ -598,7 +613,7 @@ function isToday(d) { const n=new Date(); n.setHours(0,0,0,0); return d.getTime(
 function updateHeader() {
   const n = new Date();
   document.getElementById('headerRight').innerHTML =
-    `${n.getMonth()+1}月${n.getDate()}日（${DAY_JP[n.getDay()]}）<br>${n.getFullYear()}年`;
+    `${n.getMonth()+1}月${n.getDate()}日（${DAY_JP[n.getDay()]}）<br>${n.getFullYear()}�T`;
 }
 
 // ===== MEMBER BAR =====
@@ -657,6 +672,7 @@ function renderSlots() {
     const isHour = time.endsWith(':00');
     const row = document.createElement('div');
     row.className = 'time-slot-row' + (isHour ? ' hour-start' : '');
+    row.dataset.slotIdx = SLOTS.indexOf(time);
 
     // time label
     const tc = document.createElement('div');
@@ -694,16 +710,22 @@ function renderSlots() {
 
 // ===== SLOT TAP =====
 function tapSlot(key, time) {
-  pendingKey = key;
   if (selMember) {
     const m = members.find(x=>x.id===selMember);
     if (m) { doReserve(key, m); return; }
   }
-  // picker sheet
-  const [ds, ts] = key.split('_');
+  openReserveSheet([{key, time}]);
+}
+
+function openReserveSheet(items) {
+  pendingKeys = items;
+  const first = items[0], last = items[items.length - 1];
+  const [ds] = first.key.split('_');
   const [,mo,d] = ds.split('-');
   document.getElementById('resTitle').textContent = '誰の予約ですか？';
-  document.getElementById('resSub').textContent   = `${parseInt(mo)}月${parseInt(d)}日 ${ts}`;
+  document.getElementById('resSub').textContent = items.length === 1
+    ? `${parseInt(mo)}月${parseInt(d)}日 ${first.time}`
+    : `${parseInt(mo)}月${parseInt(d)}日 ${first.time}〜${last.time}（${items.length}枠）`;
   const list = document.getElementById('resMemberList');
   list.innerHTML = '';
   members.forEach(m => {
@@ -711,7 +733,13 @@ function tapSlot(key, time) {
     btn.className = 'member-sel-btn';
     btn.style.background = m.color;
     btn.innerHTML = `<span class="m-icon">${m.icon}</span>${m.name}`;
-    btn.onclick = () => { doReserve(pendingKey, m); closeSheet('reserveSheet'); };
+    btn.onclick = () => {
+      pendingKeys.forEach(({key:k}) => {
+        reservations[k] = { memberId:m.id, memberName:m.name, color:m.color, icon:m.icon };
+      });
+      save(); renderSlots(); renderWeekStrip(); renderTodayTab();
+      closeSheet('reserveSheet');
+    };
     list.appendChild(btn);
   });
   openSheet('reserveSheet');
@@ -845,17 +873,88 @@ function switchTab(tab) {
 // ===== DATE NAV =====
 function changeDay(d) { curDate.setDate(curDate.getDate()+d); renderCal(); }
 
-// ===== SWIPE =====
-let swipeX = 0;
-document.getElementById('slotScroll').addEventListener('touchstart', e => { swipeX = e.touches[0].clientX; }, {passive:true});
-document.getElementById('slotScroll').addEventListener('touchend', e => {
-  const dx = e.changedTouches[0].clientX - swipeX;
-  if (Math.abs(dx) > 70 && Math.abs(e.changedTouches[0].clientY - e.touches?.[0]?.clientY || 0) < 30) {
-    changeDay(dx < 0 ? 1 : -1);
-  }
+// ===== DRAG SELECT & SWIPE =====
+let _tx0=0, _ty0=0, _dragStartIdx=-1, _inDragSel=false, _dragBubble=null;
+
+function _getSlotRowAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  return el ? el.closest('[data-slot-idx]') : null;
+}
+function _setDragSel(lo, hi) {
+  document.querySelectorAll('#slotScroll .time-slot-row').forEach((r, i) => {
+    r.classList.toggle('drag-sel', i >= lo && i <= hi);
+  });
+}
+function _clearDragSel() {
+  document.querySelectorAll('#slotScroll .time-slot-row.drag-sel').forEach(r => r.classList.remove('drag-sel'));
+}
+
+const _ss = document.getElementById('slotScroll');
+_ss.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  _tx0 = t.clientX; _ty0 = t.clientY; _inDragSel = false;
+  const row = _getSlotRowAt(t.clientX, t.clientY);
+  _dragStartIdx = row ? parseInt(row.dataset.slotIdx) : -1;
 }, {passive:true});
 
-// ===== SHEQT HEPPERS =====
+_ss.addEventListener('touchmove', e => {
+  const t = e.touches[0];
+  const dx = t.clientX - _tx0, dy = t.clientY - _ty0;
+  if (!_inDragSel && Math.abs(dy) > 16 && Math.abs(dy) > Math.abs(dx) * 1.2 && _dragStartIdx >= 0) {
+    _inDragSel = true;
+    if (!_dragBubble) {
+      _dragBubble = document.createElement('div');
+      _dragBubble.className = 'drag-count-bubble';
+      document.body.appendChild(_dragBubble);
+    }
+    _dragBubble.style.display = 'block';
+  }
+  if (_inDragSel) {
+    e.preventDefault();
+    const row = _getSlotRowAt(t.clientX, t.clientY);
+    const curIdx = row ? parseInt(row.dataset.slotIdx) : _dragStartIdx;
+    const lo = Math.min(_dragStartIdx, curIdx), hi = Math.max(_dragStartIdx, curIdx);
+    _setDragSel(lo, hi);
+    _dragBubble.textContent = `${hi - lo + 1}枠を選択中 ✓`;
+    _dragBubble.style.top = Math.max(80, t.clientY - 70) + 'px';
+  }
+}, {passive:false});
+
+_ss.addEventListener('touchend', e => {
+  const t = e.changedTouches[0];
+  const dx = t.clientX - _tx0, dy = t.clientY - _ty0;
+  if (_dragBubble) _dragBubble.style.display = 'none';
+  if (_inDragSel) {
+    _inDragSel = false;
+    const row = _getSlotRowAt(t.clientX, t.clientY);
+    const endIdx = row ? parseInt(row.dataset.slotIdx) : _dragStartIdx;
+    const lo = Math.min(_dragStartIdx, endIdx), hi = Math.max(_dragStartIdx, endIdx);
+    _clearDragSel();
+    _dragStartIdx = -1;
+    const items = [];
+    for (let i = lo; i <= hi; i++) {
+      const k = dkey(curDate, SLOTS[i]);
+      if (!reservations[k]) items.push({key: k, time: SLOTS[i]});
+    }
+    if (items.length > 0) {
+      if (selMember) {
+        const m = members.find(x => x.id === selMember);
+        if (m) {
+          items.forEach(({key:k}) => { reservations[k] = {memberId:m.id, memberName:m.name, color:m.color, icon:m.icon}; });
+          save(); renderSlots(); renderWeekStrip(); renderTodayTab();
+          return;
+        }
+      }
+      openReserveSheet(items);
+    }
+    return;
+  }
+  _clearDragSel();
+  _dragStartIdx = -1;
+  if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy)) changeDay(dx < 0 ? 1 : -1);
+}, {passive:true});
+
+// ===== SHEET HELPERS =====
 function openSheet(id)  { document.getElementById(id).classList.add('open'); }
 function closeSheet(id) { document.getElementById(id).classList.remove('open'); }
 function sheetBg(e,id)  { if (e.target===document.getElementById(id)) closeSheet(id); }
