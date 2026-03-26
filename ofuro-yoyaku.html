@@ -644,7 +644,7 @@ function renderMemberBar() {
 }
 
 // ===== CALENDAR =====
-function renderCal() { renderDateNav(); renderWeekStrip(); renderSlots(); }
+function renderCal(resetScroll = false) { renderDateNav(); renderWeekStrip(); renderSlots(resetScroll); }
 
 function renderDateNav() {
   const d = curDate;
@@ -670,14 +670,16 @@ function renderWeekStrip() {
       (isSun ? ' sunday' : '') + (isSat ? ' saturday' : '');
     el.innerHTML = `<span class="wd-name">${DAY_JP[d.getDay()]}</span><span class="wd-num">${d.getDate()}</span>`;
     const cap = new Date(d);
-    el.onclick = () => { curDate = cap; renderCal(); };
+    el.onclick = () => { curDate = cap; renderCal(true); };
     strip.appendChild(el);
     if (isSel) setTimeout(()=>el.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'}),30);
   }
 }
 
-function renderSlots() {
+function renderSlots(resetScroll = false) {
   const scroll = document.getElementById('slotScroll');
+  const savedScrollTop = scroll.scrollTop; // 現在のスクロール位置を保存
+  const isFirstRender = resetScroll || (savedScrollTop === 0 && scroll.children.length === 0);
   scroll.innerHTML = '';
   SLOTS.forEach((time) => {
     // 23:50と24:00の間に「翌日」区切り線を挿入
@@ -729,14 +731,17 @@ function renderSlots() {
     scroll.appendChild(row);
   });
 
-  // scroll to 18:00
-  const idx = SLOTS.indexOf('18:00');
-  if (idx >= 0) {
-    setTimeout(() => {
+  setTimeout(() => {
+    if (isFirstRender) {
+      // 初回表示のみ 18:00 へスクロール
+      const idx = SLOTS.indexOf('18:00');
       const rows = scroll.querySelectorAll('.time-slot-row');
-      if (rows[idx]) scroll.scrollTop = rows[idx].offsetTop - 8;
-    }, 40);
-  }
+      if (idx >= 0 && rows[idx]) scroll.scrollTop = rows[idx].offsetTop - 8;
+    } else {
+      // 再描画時は元のスクロール位置を維持
+      scroll.scrollTop = savedScrollTop;
+    }
+  }, 40);
 }
 
 // ===== SLOT TAP =====
@@ -902,7 +907,7 @@ function switchTab(tab) {
 }
 
 // ===== DATE NAV =====
-function changeDay(d) { curDate.setDate(curDate.getDate()+d); renderCal(); }
+function changeDay(d) { curDate.setDate(curDate.getDate()+d); renderCal(true); }
 
 // ===== DRAG SELECT & SWIPE =====
 // 長押し→ドラッグで複数選択、通常の縦スワイプはスクロール、横スワイプは日付変更
